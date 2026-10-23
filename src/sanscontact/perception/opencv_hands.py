@@ -19,6 +19,7 @@ from sanscontact.perception.source import HandLandmarkEngine
 from sanscontact.perception.types import HandObservation
 
 SAME_HAND_IOU = 0.5
+PALM_CANDIDATES = 3  # palm detections checked by the landmark model when no hand is followed
 
 
 class OpenCvHandEngine(HandLandmarkEngine):
@@ -41,23 +42,41 @@ class OpenCvHandEngine(HandLandmarkEngine):
         self._hand_blob = np.zeros((1, g.HAND_INPUT, g.HAND_INPUT, 3), dtype=np.float32)
         self._resized: np.ndarray | None = None
         self.palm_runs = 0
+        # Technical counters (numbers only), used by scripts/diagnose_hand.py.
+        self.counters = dict.fromkeys(("palm_runs", "palms_found", "detected_tried", "detected_kept",
+                                       "followed_tried", "followed_kept", "kept_rank_0", "kept_rank_1",
+                                       "kept_rank_2"), 0)
+        self.last_presence = 0.0
 
     def detect(self, rgb: np.ndarray, timestamp_ms: int) -> list[HandObservation]:  # noqa: ARG002
         height, width = rgb.shape[:2]
-        rects = list(self._tracked)
-        if len(rects) < self.num_hands:
-            for rect in self._detect_palms(rgb):
-                if len(rects) >= self.num_hands:
-                    break
-                if all(g.rect_iou(rect, other) < SAME_HAND_IOU for other in rects):
-                    rects.append(rect)
         hands: list[HandObservation] = []
         followed: list[g.NormRect] = []
-        for rect in rects:
+
+        def keep(hand: HandObservation) -> None:
+            hands.append(hand)
+            followed.append(g.landmarks_to_rect(hand.landmarks, width, height))
+
+        for rect in self._tracked:
             hand = self._landmarks(rgb, rect)
+            self.counters["followed_tried"] += 1
             if hand is not None:
-                hands.append(hand)
-                followed.append(g.landmarks_to_rect(hand.landmarks, width, height))
+                self.counters["followed_kept"] += 1
+                keep(hand)
+        if len(hands) < self.num_hands:
+            # The best-scored palm is not always a hand (a face can look like a palm):
+            # the landmark model confirms or rejects the first few candidates.
+            candidates = [r for r in self._detect_palms(rgb)
+                          if all(g.rect_iou(r, other) < SAME_HAND_IOU for other in followed)]
+            for rank, rect in enumerate(candidates[:PALM_CANDIDATES]):
+                if len(hands) >= self.num_hands:
+                    break
+                hand = self._landmarks(rgb, rect)
+                self.counters["detected_tried"] += 1
+                if hand is not None:
+                    self.counters["detected_kept"] += 1
+                    self.counters[f"kept_rank_{rank}"] += 1
+                    keep(hand)
         self._tracked = followed
         return hands
 
@@ -85,6 +104,8 @@ class OpenCvHandEngine(HandLandmarkEngine):
             boxes, scores = scores, boxes
         self.palm_runs += 1
         palms = g.weighted_nms(g.decode_palms(boxes, scores, self._anchors, self.min_detection))
+        self.counters["palm_runs"] += 1
+        self.counters["palms_found"] += len(palms)
         return [g.palm_to_rect(g.remove_letterbox(p, width, height), width, height) for p in palms]
 
     def _landmarks(self, rgb: np.ndarray, rect: g.NormRect) -> HandObservation | None:
@@ -97,6 +118,7 @@ class OpenCvHandEngine(HandLandmarkEngine):
         landmarks, presence, handedness, _world = self._hand.forward(self._hand_outputs)
         del _world  # 3-D world coordinates are not needed: dropped at once
         score = float(presence.reshape(-1)[0])
+        self.last_presence = score
         if score < self.min_presence:
             return None
         points = g.project_landmarks(landmarks.reshape(21, 3).astype(np.float64), rect)

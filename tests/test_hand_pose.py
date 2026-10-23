@@ -30,7 +30,22 @@ def test_fingers_extended():
 
 def test_relaxed_hand_fails_on_spread_not_on_extension():
     pose = features(make_hand("relaxed"), 4 / 3)
-    assert min(pose.spread_deg) < 8.0
+    assert all(pose.extended[1:]) and sum(pose.spread_deg) < 24.0
+
+
+def test_open_palm_matches_what_a_real_hand_measured():
+    """Values measured on a real open palm (diagnose_hand.py, 10th percentiles): must count as open."""
+    from sanscontact.interpretation.hand_pose import PoseFeatures
+
+    real = PoseFeatures(size=0.3, center=(0.5, 0.5), extended=(False, True, True, True, True),
+                        spread_deg=(12.1, 5.6, 22.9), thumb_spread_deg=3.6, pinch_index=0.9, pinch_middle=1.1)
+    assert real.open_palm
+    together = PoseFeatures(size=0.3, center=(0.5, 0.5), extended=(False, True, True, True, True),
+                            spread_deg=(4.0, 3.0, 6.0), thumb_spread_deg=3.6, pinch_index=0.9, pinch_middle=1.1)
+    assert not together.open_palm
+    pinching = PoseFeatures(size=0.3, center=(0.5, 0.5), extended=(False, True, True, True, True),
+                            spread_deg=(12.1, 5.6, 22.9), thumb_spread_deg=3.6, pinch_index=0.2, pinch_middle=1.1)
+    assert not pinching.open_palm
 
 
 def test_small_noise_keeps_the_open_palm():

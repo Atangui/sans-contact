@@ -7,7 +7,7 @@ les gestes ne dépendent pas de la distance à la caméra.
 
 | Geste | Posture | Effet | Curseur |
 |---|---|---|---|
-| Prendre le contrôle | Paume ouverte, doigts écartés, immobile 1 s (en veille ou en pause) | L'outil passe en « Actif » | — |
+| Prendre le contrôle | Paume ouverte, les quatre doigts tendus et écartés (le pouce peut rester le long de l'index), immobile 1 s, en veille ou en pause | L'outil passe en « Actif » | — |
 | Pointer | N'importe quelle posture détendue | Le centre de la paume déplace le curseur (image en miroir) | Suit la main |
 | Clic gauche | Pincer pouce + index, puis relâcher | Bouton gauche enfoncé puis relâché | Figé dès le début du pincement |
 | Double clic | Deux pincements rapides | Deux clics que Windows reconnaît comme un double clic | Figé entre les deux |
@@ -80,6 +80,10 @@ Vérifié automatiquement (`tests/test_gesture_coherence.py`, `tests/test_gestur
 synthétiques : chaque posture à 3 tailles, 3 inclinaisons, les deux mains et deux formats d'image ne
 déclenche que son geste ; avec du bruit sur les points, au plus 2 images sur 50 s'écartent (absorbées par
 les durées minimales) ; une simulation de deux minutes de « parler avec les mains » ne produit aucun clic.
+
+Le diagnostic `scripts/diagnose_hand.py` mesure, en chiffres seulement et sans rien enregistrer, ce que le
+moteur voit d'une vraie main (part des images où elle est suivie, écartement des doigts, pouce, immobilité).
+C'est lui qui a permis de régler la prise de contrôle sur une main réelle (`docs/DECISIONS.md`, D38 et D39).
 
 **Limites :** ces vérifications portent sur un modèle de main simplifié en deux dimensions. La main réelle
 (rotation vers la caméra, doigts qui se cachent, éclairage) doit être testée physiquement, et le taux de faux

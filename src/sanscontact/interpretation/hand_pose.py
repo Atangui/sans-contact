@@ -16,8 +16,12 @@ from sanscontact.perception.types import FINGERS, INDEX, MIDDLE, PALM, THUMB, WR
 STRAIGHT_FINGER = 0.88
 STRAIGHT_THUMB = 0.85
 THUMB_AWAY = 0.55
-MIN_SPREAD_DEG = 8.0
-MIN_THUMB_SPREAD_DEG = 25.0
+# Open palm, measured on a real hand (scripts/diagnose_hand.py): middle and ring fingers barely
+# part (about 6 degrees) and the thumb often stays along the index. So the palm counts as open when
+# the four fingers are straight and spread overall, whatever the thumb does (but not pinching).
+OPEN_SPREAD_SUM_DEG = 24.0
+OPEN_EDGE_SPREAD_DEG = 5.0  # index-middle and ring-pinky
+OPEN_THUMB_CLEAR = 0.45  # thumb tip away from the index tip, in hand sizes
 # A fingertip closer than this to the palm centre (in hand sizes) is folded into the palm.
 CURLED_TIP = 0.55
 
@@ -35,10 +39,12 @@ class PoseFeatures:
 
     @property
     def open_palm(self) -> bool:
+        index_mid, _mid_ring, ring_pinky = self.spread_deg
         return (
-            all(self.extended)
-            and min(self.spread_deg) >= MIN_SPREAD_DEG
-            and self.thumb_spread_deg >= MIN_THUMB_SPREAD_DEG
+            all(self.extended[1:])
+            and sum(self.spread_deg) >= OPEN_SPREAD_SUM_DEG
+            and min(index_mid, ring_pinky) >= OPEN_EDGE_SPREAD_DEG
+            and self.pinch_index > OPEN_THUMB_CLEAR
         )
 
     @property
