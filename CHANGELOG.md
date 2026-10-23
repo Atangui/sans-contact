@@ -1,5 +1,15 @@
 # Journal des versions
 
+## [Non publié] — phase 2 (gestes)
+
+- Clic gauche (pincer pouce + index), clic droit (pouce + majeur), double clic, glisser-déposer,
+  défilement vertical et horizontal à deux doigts, embrayage (poing).
+- Machine à états des gestes explicite : hystérésis (appui 0,25 / relâchement 0,38), durées minimales,
+  curseur figé et ramené au point visé au début d'un pincement, gel pendant le délai de double clic de Windows.
+- Mode relatif avec accélération (option), clic par maintien (option, désactivé).
+- Un bouton n'est jamais laissé enfoncé : main perdue, pause, désactivation, sortie.
+- Analyse de cohérence des gestes et tests sur séquences synthétiques : `docs/GESTES.md`.
+
 ## [Non publié] — phase 1 (socle)
 
 - Machine d'états marche/arrêt (Désactivé, En veille, Actif, En pause), toujours désactivée au lancement.

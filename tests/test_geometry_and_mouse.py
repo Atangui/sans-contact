@@ -127,6 +127,17 @@ def test_release_all_releases_only_what_we_pressed():
     assert mouse.pressed == set()
 
 
+def test_wheel_amounts_are_signed_in_the_dword_field():
+    sent = []
+    mouse = MouseOutput(send=lambda events: sent.extend(events) or len(events), read_cursor=lambda: (0, 0))
+    mouse.wheel(-120)
+    mouse.wheel(30, horizontal=True)
+    mouse.wheel(0)
+    assert sent[0].mi.dwFlags == w.MOUSEEVENTF_WHEEL and sent[0].mi.mouseData == 0xFFFFFF88
+    assert sent[1].mi.dwFlags == w.MOUSEEVENTF_HWHEEL and sent[1].mi.mouseData == 30
+    assert len(sent) == 2
+
+
 def test_move_without_desktop_is_refused():
     with pytest.raises(RuntimeError):
         MouseOutput(send=lambda e: 1, read_cursor=lambda: (0, 0)).move_to(1, 1)

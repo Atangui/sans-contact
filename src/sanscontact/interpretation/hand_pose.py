@@ -18,6 +18,8 @@ STRAIGHT_THUMB = 0.85
 THUMB_AWAY = 0.55
 MIN_SPREAD_DEG = 8.0
 MIN_THUMB_SPREAD_DEG = 25.0
+# A fingertip closer than this to the palm centre (in hand sizes) is folded into the palm.
+CURLED_TIP = 0.55
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,9 @@ class PoseFeatures:
     extended: tuple[bool, bool, bool, bool, bool]  # thumb, index, middle, ring, pinky
     spread_deg: tuple[float, float, float]  # index-middle, middle-ring, ring-pinky
     thumb_spread_deg: float
+    pinch_index: float = 1.0  # thumb tip to index tip, in hand sizes
+    pinch_middle: float = 1.0  # thumb tip to middle tip, in hand sizes
+    tip_to_palm: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0)  # index..pinky, in hand sizes
 
     @property
     def open_palm(self) -> bool:
@@ -35,6 +40,21 @@ class PoseFeatures:
             and min(self.spread_deg) >= MIN_SPREAD_DEG
             and self.thumb_spread_deg >= MIN_THUMB_SPREAD_DEG
         )
+
+    @property
+    def curled(self) -> tuple[bool, bool, bool, bool]:
+        """Index, middle, ring, pinky folded into the palm."""
+        return tuple(d < CURLED_TIP for d in self.tip_to_palm)  # type: ignore[return-value]
+
+    @property
+    def fist(self) -> bool:
+        return all(self.curled)
+
+    def two_fingers(self, thumb_away: float) -> bool:
+        """Index and middle straight, ring and pinky folded, thumb away from both tips."""
+        _thumb, index, middle, _ring, _pinky = self.extended
+        return (index and middle and self.curled[2] and self.curled[3]
+                and min(self.pinch_index, self.pinch_middle) > thumb_away)
 
 
 def scaled_points(landmarks: np.ndarray, aspect: float) -> np.ndarray:
@@ -84,12 +104,17 @@ def features(hand: HandObservation, aspect: float) -> PoseFeatures:
     spread = tuple(_angle_deg(directions[i], directions[i + 1]) for i in range(3))
     thumb_dir = points[THUMB[3]] - points[THUMB[1]]
     center = hand.landmarks[list(PALM), :2].mean(axis=0)
+    palm = points[list(PALM)].mean(axis=0)
+    thumb_tip = points[THUMB[3]]
     return PoseFeatures(
         size=size,
         center=(float(center[0]), float(center[1])),
         extended=(thumb_extended(points, size), *(finger_extended(points, f) for f in FINGERS)),
         spread_deg=spread,  # type: ignore[arg-type]
         thumb_spread_deg=_angle_deg(thumb_dir, directions[0]),
+        pinch_index=float(np.linalg.norm(thumb_tip - points[INDEX[3]])) / size,
+        pinch_middle=float(np.linalg.norm(thumb_tip - points[MIDDLE[3]])) / size,
+        tip_to_palm=tuple(float(np.linalg.norm(points[f[3]] - palm)) / size for f in FINGERS),  # type: ignore[arg-type]
     )
 
 

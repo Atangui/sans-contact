@@ -55,12 +55,21 @@ class FakeDesk:
     def __init__(self):
         self.cursor = (5, 5)
         self.moves = 0
+        self.buttons = []  # (flag, cursor position when sent)
+        self.wheel = []  # (flag, signed amount)
 
     def send(self, events):
         for e in events:
-            if e.mi.dwFlags & 0x8000:
+            flags = e.mi.dwFlags
+            if flags & 0x8000:
                 self.cursor = from_absolute(e.mi.dx, e.mi.dy, DESK)
                 self.moves += 1
+            for button_flag in (0x2, 0x4, 0x8, 0x10):
+                if flags & button_flag:
+                    self.buttons.append((button_flag, self.cursor))
+            if flags & (0x800 | 0x1000):
+                data = e.mi.mouseData
+                self.wheel.append((flags, data - (1 << 32) if data >= 1 << 31 else data))
         return len(events)
 
     def read(self):
@@ -190,6 +199,53 @@ def test_toggle_twice_turns_off(rig):
     controller.post("toggle")
     assert wait_for(lambda: controller.machine.state is PowerState.OFF)
     assert sources[-1].stopped
+
+
+LEFT_DOWN, LEFT_UP, RIGHT_DOWN, RIGHT_UP = 0x2, 0x4, 0x8, 0x10
+
+
+def test_pinch_clicks_where_the_cursor_was(rig):
+    controller, desk, sources = rig
+    engage(controller, sources)
+    stream(sources[-1], make_hand("relaxed", center=(0.5, 0.45)), 0.5)
+    aimed = desk.cursor
+    stream(sources[-1], make_hand("pinch_index", center=(0.5, 0.45)), 0.2)
+    stream(sources[-1], make_hand("pinch_index", center=(0.5, 0.45), pinch=0.0), 0.2)
+    assert [flag for flag, _ in desk.buttons] == [LEFT_DOWN, LEFT_UP]
+    assert all(abs(pos[0] - aimed[0]) <= 4 and abs(pos[1] - aimed[1]) <= 4 for _, pos in desk.buttons)
+
+
+def test_right_click(rig):
+    controller, desk, sources = rig
+    engage(controller, sources)
+    stream(sources[-1], make_hand("relaxed"), 0.3)
+    stream(sources[-1], make_hand("pinch_middle"), 0.2)
+    stream(sources[-1], make_hand("pinch_middle", pinch=0.0), 0.2)
+    assert [flag for flag, _ in desk.buttons] == [RIGHT_DOWN, RIGHT_UP]
+
+
+def test_two_fingers_scroll_the_wheel(rig):
+    controller, desk, sources = rig
+    engage(controller, sources)
+    stream(sources[-1], make_hand("relaxed"), 0.2)
+    stream(sources[-1], make_hand("two_fingers", center=(0.5, 0.55)), 0.2)
+    stream(sources[-1], make_hand("two_fingers", center=(0.5, 0.45)), 0.6)
+    vertical = [amount for flag, amount in desk.wheel if flag & 0x800]
+    assert vertical and sum(vertical) > 0 and desk.buttons == []
+
+
+def test_physical_mouse_during_a_drag_releases_the_button(rig):
+    controller, desk, sources = rig
+    engage(controller, sources)
+    stream(sources[-1], make_hand("relaxed", center=(0.5, 0.45)), 0.3)
+    stream(sources[-1], make_hand("pinch_index", center=(0.5, 0.45)), 0.2)
+    stream(sources[-1], make_hand("pinch_index", center=(0.4, 0.45)), 0.3)
+    assert controller.gesture_state.value == "drag"
+    desk.cursor = (desk.cursor[0] + 400, desk.cursor[1] + 200)
+    sources[-1].push(make_hand("pinch_index", center=(0.4, 0.45)))
+    assert wait_for(lambda: controller.machine.state is PowerState.PAUSED)
+    assert wait_for(lambda: [f for f, _ in desk.buttons] == [LEFT_DOWN, LEFT_UP])
+    assert controller.mouse.pressed == set()
 
 
 def test_no_camera_without_consent(tmp_path, monkeypatch):

@@ -45,7 +45,16 @@ class PipelineMetrics:
         self.frames = 0
         self.frames_with_hand = 0
         self.engagements = 0
+        self.gestures: dict[str, int] = {}
         self._lock = threading.Lock()
+
+    def count_gestures(self, events) -> None:
+        """Count recognised gestures (numbers only: no time, no position)."""
+        if not events:
+            return
+        with self._lock:
+            for event in events:
+                self.gestures[event] = self.gestures.get(event, 0) + 1
 
     def count_frame(self, hand_present: bool) -> None:
         with self._lock:
@@ -62,6 +71,7 @@ class PipelineMetrics:
     def reset(self) -> None:
         with self._lock:
             self.frames = self.frames_with_hand = 0
+            self.gestures = {}
         for stats in self.stages.values():
             stats.clear()
 

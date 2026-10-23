@@ -25,6 +25,8 @@ _SPREAD_OPEN = {"index": -14.0, "middle": 0.0, "ring": 12.0, "pinky": 26.0}
 _SPREAD_TOGETHER = {"index": -4.0, "middle": 0.0, "ring": 3.0, "pinky": 7.0}
 _CURLED = (85.0, 95.0, 60.0)
 _STRAIGHT = (0.0, 0.0, 0.0)
+_BENT = (25.0, 35.0, 20.0)  # a finger bending towards the thumb to pinch
+_SPREAD_PINCH_MIDDLE = {"index": -22.0, "middle": 0.0, "ring": 3.0, "pinky": 7.0}
 
 POSES = {
     # name: (spread, {finger: flex}, thumb_angle, thumb_flex)
@@ -32,7 +34,14 @@ POSES = {
     "relaxed": (_SPREAD_TOGETHER, {}, -25.0, (20.0, 30.0, 20.0)),
     "fist": (_SPREAD_TOGETHER, {f: _CURLED for f in _MCP}, 35.0, (20.0, 40.0, 30.0)),
     "point": (_SPREAD_TOGETHER, {"middle": _CURLED, "ring": _CURLED, "pinky": _CURLED}, -20.0, (40.0, 60.0, 50.0)),
+    "two_fingers": ({"index": -6.0, "middle": 6.0, "ring": 3.0, "pinky": 7.0}, {"ring": _CURLED, "pinky": _CURLED},
+                    30.0, (20.0, 40.0, 30.0)),
+    "pinch_index": (_SPREAD_TOGETHER, {"index": _BENT}, -45.0, _STRAIGHT),
+    "pinch_middle": (_SPREAD_PINCH_MIDDLE, {"middle": _BENT}, -45.0, _STRAIGHT),
 }
+# Which fingertip the thumb reaches in the pinch postures.
+_PINCH_TARGET = {"pinch_index": 8, "pinch_middle": 12}
+PINCH_GAP = 0.03  # thumb and finger tips touching, in hand sizes
 
 
 def _chain(base, direction_deg, lengths, flex):
@@ -49,8 +58,11 @@ def _chain(base, direction_deg, lengths, flex):
     return points
 
 
-def hand_points(pose: str) -> np.ndarray:
-    """(21, 2) points in the hand frame for the given posture."""
+def hand_points(pose: str, pinch: float = 1.0) -> np.ndarray:
+    """(21, 2) points in the hand frame for the given posture.
+
+    For the pinch postures, ``pinch`` goes from 0 (thumb away) to 1 (tips touching).
+    """
     spread, flexes, thumb_angle, thumb_flex = POSES[pose]
     points = np.zeros((21, 2))
     thumb = _chain(_THUMB_CMC, thumb_angle, _THUMB_LENGTHS, thumb_flex)
@@ -61,18 +73,29 @@ def hand_points(pose: str) -> np.ndarray:
         points[base] = _MCP[finger]
         flex = flexes.get(finger, _STRAIGHT)
         points[base + 1: base + 4] = _chain(_MCP[finger], spread[finger], _LENGTHS[finger], flex)
+    if pose in _PINCH_TARGET:
+        target = points[_PINCH_TARGET[pose]]
+        cmc = np.array(_THUMB_CMC)
+        direction = (target - cmc) / np.linalg.norm(target - cmc)
+        touching = target - direction * PINCH_GAP
+        tip = points[4] + (touching - points[4]) * pinch
+        normal = np.array([-(tip - cmc)[1], (tip - cmc)[0]])
+        bulge = 0.08 * normal / max(np.linalg.norm(normal), 1e-9)
+        points[2] = cmc + (tip - cmc) * 0.40 - bulge
+        points[3] = cmc + (tip - cmc) * 0.72 - bulge * 0.6
+        points[4] = tip
     return points
 
 
 def make_hand(pose: str = "open", center=(0.5, 0.55), size: float = 0.18, angle_deg: float = 0.0,
               person_hand: str = "left", aspect: float = 4 / 3, noise: float = 0.0,
-              rng: np.random.Generator | None = None, score: float = 0.95) -> HandObservation:
+              rng: np.random.Generator | None = None, score: float = 0.95, pinch: float = 1.0) -> HandObservation:
     """A HandObservation in normalised image coordinates.
 
     ``size`` is the wrist-to-middle-base distance in image-height units; ``center``
     is the palm centre in normalised coordinates.
     """
-    points = hand_points(pose) * size
+    points = hand_points(pose, pinch) * size
     if person_hand == "right":
         points[:, 0] *= -1
     a = math.radians(angle_deg)

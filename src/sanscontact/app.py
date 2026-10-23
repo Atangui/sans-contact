@@ -29,12 +29,13 @@ from sanscontact.config import settings as settings_store
 from sanscontact.config.paths import data_dir
 from sanscontact.config.settings import Settings
 from sanscontact.config.storage import delete_all_data
-from sanscontact.geometry import clamp_to_screens
+from sanscontact.interpretation.dwell import DwellClicker
 from sanscontact.interpretation.engagement import EngagementDetector
+from sanscontact.interpretation.gestures import Action, GestureConfig, GestureMachine, MouseAction, State
 from sanscontact.interpretation.hand_pose import features
 from sanscontact.interpretation.lock import HandLock, preferred
 from sanscontact.interpretation.one_euro import OneEuroFilter2D
-from sanscontact.interpretation.pointer import ActiveZone, reference_point, to_zone, zone_to_desktop
+from sanscontact.interpretation.pointer import ActiveZone, Pointer, reference_point
 from sanscontact.output.monitors import enable_per_monitor_dpi_awareness, list_monitors, virtual_desktop
 from sanscontact.output.mouse import MouseOutput
 from sanscontact.output.uipi import ElevationProbe
@@ -62,6 +63,20 @@ _NOTIFY = {
 }
 
 
+def gesture_config(settings: Settings, double_click_s: float) -> GestureConfig:
+    return GestureConfig(
+        press=settings.pinch_press,
+        release=settings.pinch_release,
+        min_press_s=settings.min_press_ms / 1000,
+        drag_start=settings.drag_start,
+        double_click_s=double_click_s,
+        scroll_dead_zone=settings.scroll_dead_zone,
+        scroll_speed=settings.scroll_speed,
+        scroll_smooth=settings.scroll_mode == "smooth",
+        scroll_invert=settings.scroll_invert,
+    )
+
+
 class ControlWorker(threading.Thread):
     """Interprets the newest observation and drives the cursor while ACTIVE."""
 
@@ -73,9 +88,14 @@ class ControlWorker(threading.Thread):
         self._stop = threading.Event()
         self.lock = HandLock()
         self.engagement = EngagementDetector(hold_s=settings.engagement_hold_s)
-        self.filter = OneEuroFilter2D(settings.one_euro_min_cutoff, settings.one_euro_beta,
-                                      settings.one_euro_d_cutoff)
-        self.zone = ActiveZone.from_list(settings.active_zone)
+        self.pointer = Pointer(
+            ActiveZone.from_list(settings.active_zone),
+            OneEuroFilter2D(settings.one_euro_min_cutoff, settings.one_euro_beta, settings.one_euro_d_cutoff),
+            mode=settings.pointer_mode, relative_gain=settings.relative_gain,
+            relative_accel=settings.relative_accel, rollback_s=settings.click_rollback_ms / 1000,
+        )
+        self.gestures = GestureMachine(gesture_config(settings, controller.double_click_s))
+        self.dwell = DwellClicker(settings.dwell_ms / 1000, settings.dwell_radius_px)
         self._event_sent = False
         self._last_uipi_check = 0.0
 
@@ -101,10 +121,13 @@ class ControlWorker(threading.Thread):
     def _on_state(self, state: PowerState) -> None:
         self._event_sent = False
         self.engagement.reset()
+        self.gestures.reset()  # buttons are released by the controller when leaving ACTIVE
+        self.dwell.reset()
         if state is PowerState.ACTIVE:
-            self.filter.reset()
+            self.pointer.reset(cursor=self.c.mouse.current_position())
         else:
             self.lock.release()
+        self.c.gesture_state = self.gestures.state
 
     def _check_lost(self, state: PowerState, now: float) -> None:
         lost = self.lock.missing_for(now) > self.s.disengage_after_s
@@ -127,16 +150,28 @@ class ControlWorker(threading.Thread):
             return
         selected = self.lock.select(candidates, now, observation.aspect)
         del candidates  # any other hand is dropped here
-        t1 = time.perf_counter_ns()
         if selected is None:
+            frame = self.gestures.hand_missing(now)
+            self.c.gesture_state = frame.state
+            if frame.actions:
+                with self.c.output_lock:
+                    if self.c.machine.state is PowerState.ACTIVE:
+                        self._execute(frame.actions)
             self._check_lost(state, now)
             return
         hand, pose = selected
+        frame = self.gestures.update(pose, now, observation.aspect)
+        self.c.gesture_state = frame.state
+        self.c.metrics.count_gestures(frame.events)
+        t1 = time.perf_counter_ns()
         x, y = reference_point(hand, pose, self.s.pointer_landmark)
-        u, v = to_zone(x, y, self.zone)
-        desk_x, desk_y = zone_to_desktop(u, v, self.c.desktop)
-        fx, fy = self.filter(desk_x, desk_y, observation.t_capture_ns / 1e9)
-        px, py = clamp_to_screens(fx, fy, self.c.screens)
+        px, py = self.pointer.update(x, y, observation.t_capture_ns / 1e9, self.c.desktop, self.c.screens,
+                                     freeze=frame.freeze, rollback=frame.rollback)
+        actions = frame.actions
+        dwell_allowed = self.s.dwell_click and frame.state is State.POINT and not frame.freeze
+        if self.dwell.update((px, py), now, dwell_allowed):
+            actions += (MouseAction(Action.LEFT_DOWN), MouseAction(Action.LEFT_UP))
+            self.c.metrics.count_gestures(("dwell_click",))
         t2 = time.perf_counter_ns()
         with self.c.output_lock:
             if self.c.machine.state is not PowerState.ACTIVE:
@@ -155,7 +190,9 @@ class ControlWorker(threading.Thread):
                 self._event_sent = True
                 self.c.post("pointer_taken", reason)
                 return
-            self.c.mouse.move_to(px, py)
+            if self.c.mouse.last_target != (px, py):
+                self.c.mouse.move_to(px, py)
+            self._execute(actions)
         t3 = time.perf_counter_ns()
         m = self.c.metrics
         for stage, value in observation.timings_ns.items():
@@ -164,6 +201,23 @@ class ControlWorker(threading.Thread):
         m.add_ms("smooth", (t2 - t1) / 1e6)
         m.add_ms("inject", (t3 - t2) / 1e6)
         m.add_ms("total", (time.perf_counter_ns() - observation.t_capture_ns) / 1e6)
+
+    def _execute(self, actions) -> None:
+        """Send gesture actions. Called with the output lock held and the state ACTIVE."""
+        mouse = self.c.mouse
+        for item in actions:
+            if item.action is Action.LEFT_DOWN:
+                mouse.press("left")
+            elif item.action is Action.LEFT_UP:
+                mouse.release("left")
+            elif item.action is Action.RIGHT_DOWN:
+                mouse.press("right")
+            elif item.action is Action.RIGHT_UP:
+                mouse.release("right")
+            elif item.action is Action.WHEEL:
+                mouse.wheel(item.amount)
+            elif item.action is Action.HWHEEL:
+                mouse.wheel(item.amount, horizontal=True)
 
 
 def _webcam_source(spec: CameraSpec, factory: EngineFactory, on_failure) -> PointerSource:
@@ -193,6 +247,9 @@ class Controller:
         self.camera_name: str | None = None
         self.detail = t("reason.startup")
         self.hotkey_ok: bool | None = None
+        # Windows' own double-click time (read, never changed).
+        self.double_click_s = (w.GetDoubleClickTime() or 500) / 1000
+        self.gesture_state = State.POINT
         self._running = True
         self._dialog_open = False
         self._low_fps_warned = False
@@ -434,11 +491,13 @@ class Controller:
         fps = source.fps if source is not None else 0.0
         mean, p95, _ = self.metrics.stages["total"].snapshot()
         detect_mean, _, _ = self.metrics.stages["detect"].snapshot()
+        gestures = " ".join(f"{k}={v}" for k, v in sorted(self.metrics.gestures.items())) or "none"
         self.log.info(
             "metrics state=%s fps=%.1f latency_ms=%.1f/p95 %.1f detect_ms=%.1f hands=%.0f%% engagements=%d "
-            "cpu=%.0f%% mem_mb=%.0f net=%d",
+            "gestures[%s] cpu=%.0f%% mem_mb=%.0f net=%d",
             self.machine.state.value, fps, mean, p95, detect_mean, 100 * self.metrics.hand_ratio(),
-            self.metrics.engagements, self.usage.cpu_percent(), self.usage.memory_mb(), self.network_count(),
+            self.metrics.engagements, gestures, self.usage.cpu_percent(), self.usage.memory_mb(),
+            self.network_count(),
         )
         if source is not None and self.machine.camera_on and 0 < fps < LOW_FPS and not self._low_fps_warned:
             self._low_fps_warned = True

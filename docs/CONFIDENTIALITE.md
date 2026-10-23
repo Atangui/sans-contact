@@ -30,8 +30,11 @@ L'image de la caméra ne quitte jamais la mémoire de l'ordinateur et ne sert qu
   puis la mémoire utilisée est écrasée.
 - Aucune connexion réseau : l'application coupe tout accès réseau à son démarrage et compte les
   tentatives. Le compteur est affiché dans l'infobulle de l'icône et doit rester à 0.
-- Le journal technique ne contient que des chiffres (images par seconde, délais, processeur, mémoire),
-  sans date ni heure, sans position du curseur, sans titre de fenêtre ni nom de fichier.
+- Le journal technique ne contient que des chiffres (images par seconde, délais, processeur, mémoire,
+  nombre de clics et de gestes reconnus), sans date ni heure, sans position du curseur, sans titre de
+  fenêtre ni nom de fichier.
+- Pour que le clic tombe au bon endroit, les positions du curseur des deux dernières secondes sont gardées
+  en mémoire, jamais écrites, et effacées à chaque arrêt.
 
 ## Ce qui est stocké sur l'ordinateur
 

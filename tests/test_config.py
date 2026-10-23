@@ -41,6 +41,23 @@ def test_corrupted_or_missing_file_gives_defaults(tmp_path):
     assert store.load(tmp_path) == Settings()
 
 
+def test_example_config_lists_every_setting_with_valid_values(tmp_path):
+    from dataclasses import asdict, fields
+
+    example = Path(__file__).resolve().parents[1] / "config.example.json"
+    raw = json.loads(example.read_text(encoding="utf-8"))
+    assert set(raw) == {f.name for f in fields(Settings)}
+    (tmp_path / store.SETTINGS_FILE).write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+    loaded = asdict(store.load(tmp_path))
+    assert {k: v for k, v in loaded.items() if k != "camera_name"} == {k: v for k, v in raw.items()
+                                                                       if k != "camera_name"}
+
+
+def test_hysteresis_band_is_always_kept():
+    s = Settings(pinch_press=0.30, pinch_release=0.31).validated()
+    assert s.pinch_release - s.pinch_press >= 0.05
+
+
 def test_settings_hold_only_numbers_and_names(tmp_path):
     store.save(tmp_path, Settings())
     text = (tmp_path / store.SETTINGS_FILE).read_text(encoding="utf-8")

@@ -16,6 +16,8 @@ _CHOICES = {
     "camera_backend": ("msmf", "dshow"),
     "hand": ("any", "left", "right"),
     "pointer_landmark": ("palm_center", "index_mcp"),
+    "pointer_mode": ("absolute", "relative"),
+    "scroll_mode": ("smooth", "notches"),
 }
 _RANGES = {
     "frame_width": (160, 1920),
@@ -30,6 +32,17 @@ _RANGES = {
     "disengage_after_s": (1.0, 15.0),
     "pause_timeout_s": (5.0, 600.0),
     "physical_mouse_tolerance_px": (1, 50),
+    "relative_gain": (0.2, 5.0),
+    "relative_accel": (0.0, 3.0),
+    "pinch_press": (0.10, 0.50),
+    "pinch_release": (0.15, 0.70),
+    "min_press_ms": (20, 400),
+    "drag_start": (0.1, 1.5),
+    "click_rollback_ms": (0, 300),
+    "scroll_dead_zone": (0.0, 0.5),
+    "scroll_speed": (1.0, 60.0),
+    "dwell_ms": (300, 5000),
+    "dwell_radius_px": (3, 80),
 }
 
 
@@ -54,6 +67,21 @@ class Settings:
     disengage_after_s: float = 3.0
     pause_timeout_s: float = 30.0
     physical_mouse_tolerance_px: int = 3
+    pointer_mode: str = "absolute"
+    relative_gain: float = 1.0
+    relative_accel: float = 0.5
+    pinch_press: float = 0.25
+    pinch_release: float = 0.38
+    min_press_ms: int = 60
+    drag_start: float = 0.35
+    click_rollback_ms: int = 100
+    scroll_mode: str = "smooth"
+    scroll_dead_zone: float = 0.10
+    scroll_speed: float = 12.0
+    scroll_invert: bool = False
+    dwell_click: bool = False
+    dwell_ms: int = 1000
+    dwell_radius_px: int = 12
     # Ctrl+Alt+Space (the mock-up's shortcut) is often taken by other software.
     hotkey: str = "Ctrl+Alt+Shift+Space"
     release_on_display_off: bool = True
@@ -78,8 +106,10 @@ class Settings:
             data["camera_name"] = None
         if not isinstance(data["hotkey"], str) or not data["hotkey"].strip():
             data["hotkey"] = defaults.hotkey
-        for name in ("release_on_display_off", "metrics_log"):
+        for name in ("release_on_display_off", "metrics_log", "scroll_invert", "dwell_click"):
             data[name] = bool(data[name])
+        if data["pinch_release"] < data["pinch_press"] + 0.05:  # keep a real hysteresis band
+            data["pinch_press"], data["pinch_release"] = defaults.pinch_press, defaults.pinch_release
         return Settings(**data)
 
 

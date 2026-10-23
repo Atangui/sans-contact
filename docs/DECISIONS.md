@@ -39,3 +39,17 @@ Chaque décision qui ne figurait pas dans le cahier des charges est notée ici e
 | D21 | Un témoin réseau au niveau du système : lecture des tables de connexions Windows pour notre processus (en plus du coupe-réseau Python). | Le code natif peut contourner Python ; ce témoin le voit. |
 | D22 | `pywebview` vérifié sur Python 3.14.3 : fenêtre cachée, pont JavaScript fonctionnel, aucun port ouvert, compatible avec le coupe-réseau. | Lever le doute signalé en phase 0. Le contenu sera chargé sans serveur (chaîne HTML ou hôte virtuel WebView2). |
 | D23 | (Sans objet depuis D4 : `tzdata`, `python-dateutil` et `matplotlib` ont été retirés avec MediaPipe.) | — |
+
+## Phase 2 — gestes
+
+| # | Décision | Pourquoi |
+|---|---|---|
+| D29 | Le bouton est enfoncé dès qu'un pincement a tenu 60 ms, et relâché quand le pincement s'ouvre. Clic, appui long et glisser-déposer sont donc le même geste, distingués par le mouvement de la main. | Un seul geste à apprendre ; les menus contextuels s'ouvrent au relâchement, comme avec une souris. |
+| D30 | Au début d'un pincement, le curseur revient à sa position d'il y a 100 ms (`click_rollback_ms`). Les positions récentes restent en mémoire (2 s au plus) et ne sont jamais écrites. | Fermer le pincement bouge un peu la main : le clic doit tomber là où la personne visait. Règle 3.6 respectée (rien dans les journaux). |
+| D31 | Double clic : le curseur reste figé pendant le délai de double clic de Windows après chaque clic (lu avec `GetDoubleClickTime`, jamais modifié). S'éloigner de 0,4 taille de main annule ce gel. | Windows refuse un double clic si le curseur bouge de plus de 4 pixels. |
+| D32 | Le poing l'emporte toujours sur les pincements ; un pincement exige que le doigt pincé ne soit pas replié. | Dans un poing, le pouce touche presque les doigts (0,10 taille de main sur la main synthétique). |
+| D33 | Défilement « à vitesse » (écart à la position de départ, zone morte 0,10), vertical et horizontal, en petits pas par défaut (`scroll_mode = smooth`) ; option `notches` pour des crans entiers. La comparaison réelle par application est prévue dans `docs/COMPATIBILITE.md` (phase 4). | Lire un long document sans ramener la main ; certaines applications n'acceptent que des crans entiers. |
+| D34 | Mode absolu : l'embrayage fige le curseur, qui reprend sa position absolue quand le poing s'ouvre. Le « replacement de la main » comme on soulève une souris est offert par le mode relatif (option `pointer_mode = relative`, avec accélération). | En mode absolu, chaque position de la main correspond à un point fixe de l'écran : décaler cette correspondance rendrait une partie de l'écran inaccessible. |
+| D35 | Les distances de pincement sont mesurées dans le plan de l'image (2D), pas en 3D. | La profondeur estimée par le modèle est la donnée la moins fiable. À revoir si les tests physiques montrent des faux pincements main de profil. |
+| D36 | Clic par maintien disponible (`dwell_click`, 1 s, rayon 12 px), désactivé par défaut ; il faut s'éloigner de 30 px pour en refaire un. | Règle 3.9 ; activé par défaut, il cliquerait partout où l'on s'arrête pour lire. |
+| D37 | Une main perdue pendant plus de 0,25 s relâche tout bouton enfoncé. | Aucun bouton ne doit rester enfoncé (3.7). |

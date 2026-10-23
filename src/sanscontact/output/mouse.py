@@ -64,6 +64,9 @@ class MouseOutput:
     def forget_position(self) -> None:
         self.last_target = None
 
+    def current_position(self) -> tuple[int, int] | None:
+        return self._read_cursor()
+
     def moved_externally(self, tolerance: int) -> bool | None:
         """True if the real mouse moved since our last move; None if the cursor cannot be read."""
         position = self._read_cursor()
@@ -98,6 +101,19 @@ class MouseOutput:
             ok = self._send([_mouse_input(0, 0, up)]) == 1
             self.pressed.discard(button)
         return ok
+
+    def wheel(self, amount: int, horizontal: bool = False) -> bool:
+        """Scroll by ``amount`` (WHEEL_DELTA = 120 is one notch; smaller values scroll smoothly).
+
+        Vertical: positive scrolls up. Horizontal: positive scrolls right.
+        """
+        if not amount:
+            return True
+        flags = w.MOUSEEVENTF_HWHEEL if horizontal else w.MOUSEEVENTF_WHEEL
+        event = _mouse_input(0, 0, flags)
+        event.mi.mouseData = amount & 0xFFFFFFFF  # signed value in a DWORD field
+        with self._lock:
+            return self._send([event]) == 1
 
     def release_all(self) -> None:
         """Release every button this application pressed (and only those)."""
