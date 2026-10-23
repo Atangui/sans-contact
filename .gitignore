@@ -1,0 +1,52 @@
+# Private brief: local paths and a private link, never committed
+prompt-controle-sans-contact.md
+
+# Local list of personal patterns used by the pre-commit privacy check
+.privacy-patterns.local
+
+# Real configuration lives in %LOCALAPPDATA%\SansContact, never here
+config.local.json
+settings.json
+
+# Virtual environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# MediaPipe models: downloaded and checked by scripts/fetch_models.py
+models/
+*.task
+*.tflite
+
+# Camera or screen material must never enter the repository
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.gif
+*.webp
+*.tif
+*.tiff
+*.heic
+*.raw
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.wmv
+*.npy
+*.npz
+# Explicitly reviewed demo-mode assets (fictitious data, no camera) are allowed here only
+!docs/assets/demo/**
+
+# Editors and OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

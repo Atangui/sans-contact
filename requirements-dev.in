@@ -1,0 +1,6 @@
+# Development-only tools. Compile with:
+#   .venv\Scripts\pip-compile --generate-hashes --allow-unsafe requirements-dev.in
+-c requirements.txt
+pip-tools==7.6.2
+pytest==9.1.1
+ruff==0.17.2

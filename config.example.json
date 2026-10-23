@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "camera_name": "Exemple de webcam",
+  "camera_backend": "dshow",
+  "frame_width": 640,
+  "frame_height": 480,
+  "frame_rate": 30,
+  "num_hands": 1,
+  "opencv_threads": 4,
+  "hand": "any",
+  "pointer_landmark": "palm_center",
+  "active_zone": [0.2, 0.15, 0.8, 0.75],
+  "one_euro_min_cutoff": 1.0,
+  "one_euro_beta": 0.015,
+  "one_euro_d_cutoff": 1.0,
+  "engagement_hold_s": 1.0,
+  "disengage_after_s": 3.0,
+  "pause_timeout_s": 30.0,
+  "physical_mouse_tolerance_px": 3,
+  "hotkey": "Ctrl+Alt+Shift+Space",
+  "release_on_display_off": true,
+  "metrics_log": true
+}

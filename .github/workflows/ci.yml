@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0  # the privacy check reads the whole history
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Install pinned dependencies (hashes verified)
+        run: python -m pip install --require-hashes --no-deps -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Privacy check (files and history)
+        run: |
+          python scripts/privacy_check.py --all-files
+          python scripts/privacy_check.py --history
+
+      - name: Download models (SHA-256 verified)
+        run: python scripts/fetch_models.py
+
+      - name: Unit tests (no camera, synthetic points only)
+        run: python -m pytest

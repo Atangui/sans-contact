@@ -1,0 +1,27 @@
+[project]
+name = "sanscontact"
+version = "0.1.0"
+description = "Piloter Windows sans toucher la souris : la main devant une simple webcam, tout reste sur le PC."
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+license = "MIT"
+authors = [{ name = "Charles Atangui" }]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["SIM105"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q -m \"not desktop and not camera\""
+markers = [
+    "desktop: touches the real Windows desktop (tray icon, hotkey, windows); run on demand",
+    "camera: turns the webcam on; run on demand only",
+    "model: needs the downloaded model files (scripts/fetch_models.py)",
+]

@@ -1,0 +1,6 @@
+# Runtime dependencies. Compile with:
+#   .venv\Scripts\pip-compile --generate-hashes --allow-unsafe --strip-extras --no-emit-index-url requirements.in
+# MediaPipe is deliberately absent: its native library embeds Google usage telemetry (docs/DECISIONS.md, D4).
+numpy==2.5.4
+opencv-python-headless==5.0.0.93
+pywebview==6.2.1
