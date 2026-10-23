@@ -56,6 +56,12 @@ def test_local_patterns(tmp_path):
 
 def test_clean_text_passes():
     assert reasons("src/x.py", "def f():\n    return 1\n") == []
+    decorators = [AT + "pytest.mark.parametrize('a', [1])", "+" + AT + "pytest.fixture"]
+    assert reasons("tests/x.py", "\n".join(decorators)) == []
+
+
+def test_whole_history_is_clean():
+    assert pc.main(["--history"]) == 0
 
 
 def test_this_repository_has_no_finding():

@@ -46,7 +46,8 @@ GENERIC_PATTERNS = (
                 re.IGNORECASE), "chemin local Windows"),
     (re.compile(r"(?<![\w.])/(?:Users|home)/(?!<|\$|\{|runner\b)[A-Za-z0-9._-]+/"), "chemin local"),
     (re.compile(r"claude\.ai/(?:code/)?artifact/", re.IGNORECASE), "lien d'artefact privé"),
-    (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"), "adresse e-mail"),
+    (re.compile(r"(?<![\w.%+-])[A-Za-z0-9][A-Za-z0-9._%+-]*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"),
+     "adresse e-mail"),
 )
 ALLOWED_EMAIL_SUFFIXES = ("@users.noreply.github.com", "noreply@anthropic.com", "@example.com", "@example.org",
                           "@example.net")
@@ -141,14 +142,20 @@ def history_findings(patterns) -> list[Finding]:
             findings.append(Finding("(auteurs des commits)", 0, f"adresse e-mail non « noreply » : {email}"))
     log = _git("log", "--all", "-p", "--no-color", "--format=commit %H%n%B").decode("utf-8", errors="replace")
     current = "(message de commit)"
+    in_diff = False
     for number, line in enumerate(log.splitlines(), start=1):
+        if line.startswith("commit ") and len(line) == 47:
+            current, in_diff = "(message de commit)", False
+            continue
         if line.startswith("diff --git "):
-            current = line.split(" b/", 1)[-1]
+            current, in_diff = line.split(" b/", 1)[-1], True
             if Path(current).suffix.lower() in MEDIA_EXTENSIONS and not current.startswith(ALLOWED_MEDIA_PREFIXES):
                 findings.append(Finding(current, 0, "fichier image/vidéo présent dans l'historique"))
             continue
-        if line.startswith(("+++", "---", "-", "@@", "index ")):
-            continue
+        if in_diff:
+            if not line.startswith("+") or line.startswith("+++"):
+                continue  # only what was added; removed and context lines were checked when added
+            line = line[1:]
         for finding in check_text(current, line, patterns):
             findings.append(Finding(f"{finding.path} (historique, ligne {number} du journal)", 0, finding.reason))
     return findings
