@@ -1,5 +1,14 @@
 # Journal des versions
 
+## [Non publié] — démo en ligne et publication
+
+- Démo interactive sans caméra (`docs/`, GitHub Pages) : une main synthétique pilote un bureau fictif avec une
+  traduction JavaScript du moteur, vérifiée image par image contre le Python (`tests/test_demo_engine.py`).
+  Visite guidée de tous les gestes et mode « piloter vous-même » (souris et clavier, ou écran tactile).
+- La page ne fait aucune requête après chargement (`default-src 'none'`) et affiche son témoin de connexions.
+- GIF et captures de la démo (`docs/assets/demo/`), reproductibles par `scripts/capture_demo.js`.
+- README complet pour la publication ; liste de contrôle `docs/PUBLICATION.md` ; décisions D40 à D46.
+
 ## [Non publié] — phase 2 (gestes)
 
 - Clic gauche (pincer pouce + index), clic droit (pouce + majeur), double clic, glisser-déposer,

@@ -34,6 +34,10 @@ MediaPipe n'est pas utilisé : voir `docs/DECISIONS.md` (D4).
 | colorama | 0.4.6 | Dépendance de pytest et click | BSD (classificateur PyPI) |
 | ruff | 0.17.2 | Analyse du code | MIT |
 
+La démo en ligne (`docs/`) n'utilise aucun composant tiers. Ses captures sont refaites, au besoin, avec
+Node.js, Playwright (Apache-2.0) et ffmpeg (LGPL-2.1 ou plus) : outils facultatifs, non installés par le
+projet et jamais distribués.
+
 ## Modèles (téléchargés par `scripts/fetch_models.py`, non versionnés)
 
 | Modèle | Source | Licence |

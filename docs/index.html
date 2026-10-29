@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>SansContact — démo interactive</title>
+<meta name="description" content="Piloter le curseur avec la main, devant une simple webcam. Démo sans caméra : une main synthétique pilote un bureau fictif avec le vrai moteur de gestes.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='49' fill='%23FFB03B'/%3E%3Ccircle cx='50' cy='50' r='44' fill='%231B1F27'/%3E%3Ccircle cx='50' cy='50' r='41' fill='%23262B34'/%3E%3Cpolygon points='72,50 61,69.05 39,69.05 28,50 39,30.95 61,30.95' fill='%23FFB03B'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="demo/demo.css">
+<script src="demo/guard.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="iris" data-iris="active" aria-hidden="true"></span>
+    <strong>SansContact</strong>
+    <span class="tagline">Le geste suffit.</span>
+  </div>
+  <p class="demo-badge">Démo · données fictives · aucune caméra</p>
+  <a class="source" href="https://github.com/Atangui/sans-contact">Code source</a>
+</header>
+
+<main class="stage">
+  <section class="sensor" aria-labelledby="sensor-title">
+    <div class="panel-head">
+      <h2 id="sensor-title">Vue de SansContact</h2>
+      <span>21 points par main, jamais l’image</span>
+    </div>
+    <div class="camera" id="camera-box">
+      <canvas id="camera" aria-label="Squelette de la main synthétique, dessiné à partir de ses 21 points"></canvas>
+      <div class="camera-off" id="camera-off">
+        <span class="iris" data-iris="off" aria-hidden="true"></span>
+        <p>Caméra éteinte</p>
+        <button type="button" class="ghost-button" id="camera-activate" hidden>Activer</button>
+      </div>
+    </div>
+
+    <div class="status">
+      <span class="iris status-iris" id="state-iris" data-iris="off" aria-hidden="true"></span>
+      <div>
+        <p class="state" id="state-label">Désactivé</p>
+        <p class="hint" id="state-hint">Au lancement, l’outil est toujours désactivé.</p>
+      </div>
+    </div>
+
+    <ol class="machine" id="machine" aria-label="État de la machine des gestes">
+      <li data-state="point">Pointer</li>
+      <li data-state="left_pending">Pincement</li>
+      <li data-state="left_down">Bouton gauche</li>
+      <li data-state="drag">Glisser</li>
+      <li data-state="right_pending">Pincement droit</li>
+      <li data-state="right_down">Bouton droit</li>
+      <li data-state="scroll">Défiler</li>
+      <li data-state="clutch">Embrayage</li>
+    </ol>
+
+    <div class="gauges">
+      <div class="gauge" id="gauge-index">
+        <span class="gauge-label">Pouce ↔ index</span>
+        <span class="gauge-track"><span class="gauge-band"></span><span class="gauge-mark press"></span><span class="gauge-mark release"></span><span class="gauge-dot"></span></span>
+        <span class="gauge-value">—</span>
+      </div>
+      <div class="gauge" id="gauge-middle">
+        <span class="gauge-label">Pouce ↔ majeur</span>
+        <span class="gauge-track"><span class="gauge-band"></span><span class="gauge-mark press"></span><span class="gauge-mark release"></span><span class="gauge-dot"></span></span>
+        <span class="gauge-value">—</span>
+      </div>
+      <p class="gauge-legend">En tailles de main · appui &lt; 0,25 · relâchement &gt; 0,38</p>
+    </div>
+
+    <dl class="counters" id="counters">
+      <div><dt>Clics</dt><dd data-count="click">0</dd></div>
+      <div><dt>Doubles</dt><dd data-count="double_click">0</dd></div>
+      <div><dt>Droits</dt><dd data-count="right_click">0</dd></div>
+      <div><dt>Glisser</dt><dd data-count="drag">0</dd></div>
+      <div><dt>Défiler</dt><dd data-count="scroll">0</dd></div>
+      <div><dt>Ignorés</dt><dd data-count="ignored">0</dd></div>
+    </dl>
+
+    <p class="privacy">
+      <span><b id="net-count">0</b> connexion réseau</span>
+      <span><b>0</b> image conservée</span>
+      <span>aucun visage recherché</span>
+    </p>
+  </section>
+
+  <section class="screen" aria-labelledby="screen-title">
+    <div class="panel-head">
+      <h2 id="screen-title">Bureau fictif</h2>
+      <span>seul le curseur de SansContact y agit</span>
+    </div>
+    <div class="desktop" id="desktop">
+      <div class="dk-icon" data-drop="corbeille" data-name="Corbeille">
+        <span class="glyph bin" aria-hidden="true"></span>
+        <span>Corbeille</span>
+      </div>
+
+      <section class="win explorer" id="win-explorer" data-win>
+        <div class="win-bar" data-grab>
+          <span class="win-title">Salon 2027</span>
+          <span class="win-buttons" aria-hidden="true"><i></i><i></i><i></i></span>
+        </div>
+        <div class="win-path">Projets › Salon 2027</div>
+        <div class="files" id="files">
+          <div class="file" data-file data-name="Affiche-salon.pdf"><span class="ficon pdf">PDF</span><span class="fname">Affiche-salon.pdf</span></div>
+          <div class="file" data-file data-name="Budget-2027.xlsx"><span class="ficon xls">XLS</span><span class="fname">Budget-2027.xlsx</span></div>
+          <div class="file" data-file data-name="Note-de-cadrage.txt" data-opens="win-doc"><span class="ficon txt">TXT</span><span class="fname">Note-de-cadrage.txt</span></div>
+          <div class="file" data-file data-name="Plan-du-stand.svg"><span class="ficon svg">SVG</span><span class="fname">Plan-du-stand.svg</span></div>
+          <div class="file" data-file data-name="Intervenants.csv"><span class="ficon csv">CSV</span><span class="fname">Intervenants.csv</span></div>
+          <div class="file folder" data-file data-drop="archives" data-name="Archives"><span class="ficon dir" aria-hidden="true"></span><span class="fname">Archives</span><span class="fmeta" id="archives-count">2 éléments</span></div>
+        </div>
+        <div class="win-status" id="explorer-status">6 éléments</div>
+      </section>
+
+      <section class="win notepad" id="win-doc" data-win hidden>
+        <div class="win-bar" data-grab>
+          <span class="win-title">Note-de-cadrage.txt — Bloc-notes</span>
+          <span class="win-buttons"><i aria-hidden="true"></i><i aria-hidden="true"></i><i data-close="win-doc" aria-label="Fermer"></i></span>
+        </div>
+        <div class="doc" data-scroll>
+          <h3>Salon de l’accessibilité numérique 2027 — note de cadrage</h3>
+          <p>Document fictif, rédigé pour la démonstration. Aucun nom, aucune date, aucun chiffre réel.</p>
+          <h4>1. Objectif</h4>
+          <p>Montrer qu’un poste de travail ordinaire peut s’utiliser sans souris : une webcam, une main, et rien qui ne quitte l’ordinateur.</p>
+          <h4>2. Public</h4>
+          <p>Personnes qui ne peuvent pas ou ne veulent pas toucher la souris : douleur au poignet, plâtre, mains occupées en atelier ou en cuisine, environnement stérile, présentation devant un écran.</p>
+          <h4>3. Parcours de visite</h4>
+          <p>Accueil, puis trois postes : pointer et cliquer, lire un long document en défilant, ranger des fichiers par glisser-déposer. Chaque poste se termine par le raccourci d’arrêt.</p>
+          <h4>4. Règles du stand</h4>
+          <p>Aucune photo ni vidéo des visiteurs. La caméra ne s’allume qu’après l’écran d’explication et s’éteint dès qu’on s’arrête. Le témoin reste visible.</p>
+          <h4>5. Ergonomie</h4>
+          <p>Coude posé, petits gestes : la zone active est réduite et le gain réglable. Le clic par maintien est proposé, désactivé par défaut.</p>
+          <h4>6. À vérifier sur place</h4>
+          <p>Éclairage, couleur de peau, bagues, manches longues : noter tout écart de détection et le signaler, sans jamais enregistrer d’image.</p>
+          <h4>7. Matériel</h4>
+          <p>Un portable, sa webcam intégrée, un écran externe. Pas de réseau nécessaire : tout fonctionne hors ligne.</p>
+          <p class="doc-end">— Fin de la note —</p>
+        </div>
+      </section>
+
+      <div class="menu" id="menu" hidden>
+        <p class="menu-title" id="menu-title"></p>
+        <div class="menu-item" data-menu="open">Ouvrir</div>
+        <div class="menu-item" data-menu="rename">Renommer</div>
+        <div class="menu-item" data-menu="copy">Copier</div>
+        <div class="menu-item" data-menu="delete">Supprimer</div>
+      </div>
+
+      <div class="dialog-scrim" id="consent" hidden>
+        <div class="dialog" role="dialog" aria-labelledby="consent-title">
+          <p class="dialog-title" id="consent-title"><span class="iris" data-iris="standby" aria-hidden="true"></span>SansContact — avant d’allumer la caméra</p>
+          <ul>
+            <li><b>Ce que la caméra filme :</b> votre main devant l’écran, en basse résolution (640 × 480).</li>
+            <li><b>Ce qui est calculé :</b> 21 points de la main, uniquement pour déplacer le curseur. Pas de visage, pas de reconnaissance, aucune analyse de la personne.</li>
+            <li><b>Ce qui n’est jamais conservé ni envoyé :</b> aucune image n’est enregistrée, affichée ou transmise.</li>
+            <li><b>Pour tout arrêter :</b> Ctrl + Alt + Maj + Espace.</li>
+          </ul>
+          <p class="dialog-note">Dans cette démo, aucune caméra n’est utilisée : la main est synthétique.</p>
+          <div class="dialog-buttons">
+            <button type="button" id="consent-no">Annuler</button>
+            <button type="button" class="primary" id="consent-yes">Allumer la caméra</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ghost" id="ghost" hidden></div>
+      <div class="ripple" id="ripple"></div>
+      <div class="keychip" id="keychip" hidden></div>
+      <div class="phys-mouse" id="phys-mouse" hidden>
+        <svg viewBox="0 0 24 32" aria-hidden="true"><rect x="1.5" y="1.5" width="21" height="29" rx="10.5" fill="#F6F7F9" stroke="#3A3F48" stroke-width="2"/><line x1="12" y1="2" x2="12" y2="12" stroke="#3A3F48" stroke-width="2"/></svg>
+        <span>Souris physique</span>
+      </div>
+
+      <div class="taskbar">
+        <span class="start" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="task" data-task="win-explorer">Explorateur</span>
+        <span class="task" data-task="win-doc" hidden>Bloc-notes</span>
+        <button type="button" class="tray" id="tray" aria-label="SansContact : activer ou désactiver">
+          <span class="iris" id="tray-iris" data-iris="off" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="indicator" id="indicator" hidden><span class="iris" id="indicator-iris" data-iris="standby" aria-hidden="true"></span></div>
+      <div class="balloon" id="balloon" hidden></div>
+
+      <div class="cursor" id="cursor" aria-hidden="true">
+        <span class="cursor-ring"></span>
+        <svg viewBox="0 0 20 22"><path d="M2 1.5 L2 17.5 L6.3 13.4 L9.3 20 L12 18.8 L9.1 12.4 L15 12.4 Z" fill="#FFFFFF" stroke="#15181D" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="bar">
+  <div class="caption-box">
+    <span class="step" id="step"></span>
+    <p class="caption" id="caption" aria-live="polite">Chargement…</p>
+  </div>
+  <div class="controls">
+    <button type="button" class="primary" id="btn-tour">Visite guidée</button>
+    <button type="button" id="btn-pause">Pause</button>
+    <button type="button" id="btn-live">Piloter vous-même</button>
+  </div>
+  <div class="live" id="live" hidden>
+    <button type="button" class="power" id="btn-power">Activer</button>
+    <span class="postures" role="group" aria-label="Postures de la main (maintenir la touche ou cliquer pour verrouiller)">
+      <button type="button" data-posture="open"><kbd>O</kbd> Paume ouverte</button>
+      <button type="button" data-posture="pinch_index"><kbd>Espace</kbd> Pincer index</button>
+      <button type="button" data-posture="pinch_middle"><kbd>M</kbd> Pincer majeur</button>
+      <button type="button" data-posture="two_fingers"><kbd>D</kbd> Deux doigts</button>
+      <button type="button" data-posture="fist"><kbd>F</kbd> Poing</button>
+    </span>
+    <label class="switch"><input type="checkbox" id="opt-dwell"> Clic par maintien</label>
+    <label class="switch"><input type="checkbox" id="opt-relative"> Mode relatif</label>
+  </div>
+</footer>
+
+<script src="demo/engine.js"></script>
+<script src="demo/view.js"></script>
+<script src="demo/desktop.js"></script>
+<script src="demo/tour.js"></script>
+<script src="demo/demo.js"></script>
+</body>
+</html>

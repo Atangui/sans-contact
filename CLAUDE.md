@@ -71,5 +71,6 @@ En cas de conflit entre une fonctionnalité et ces règles, les règles gagnent 
 - Demande avant d'installer quoi que ce soit (paquet, rôle, licence). Versions épinglées avec empreintes.
 - Ne modifie jamais les paramètres système ou de sécurité de Windows. Ne lance rien en administrateur. Si une politique de sécurité bloque quelque chose, arrête-toi et explique.
 - Rien n'est publié sans accord explicite : pas de dépôt distant, pas de `push`, pas de GitHub Pages avant la liste `docs/PUBLICATION.md`.
+- La démo en ligne (`docs/demo/engine.js`) traduit le moteur en JavaScript : toute modification de `interpretation/`, `power.py` ou de la main synthétique s'y reporte (`tests/test_demo_engine.py` échoue sinon). Captures uniquement de la démo, par `scripts/capture_demo.js`.
 - Note dans `docs/DECISIONS.md` toute décision prise sans l'utilisateur.
 - Le contrôle avant commit (`scripts/privacy_check.py`) ne doit jamais être contourné.
